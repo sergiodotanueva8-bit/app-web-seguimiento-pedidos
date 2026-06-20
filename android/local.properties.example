@@ -1,0 +1,8 @@
+# Este archivo lo genera Flutter automáticamente la primera vez que
+# corres `flutter pub get` o abres el proyecto en Android Studio.
+# Si no se genera solo, complétalo así (ajusta las rutas a tu PC):
+#
+# sdk.dir=/Users/tu_usuario/Library/Android/sdk
+# flutter.sdk=/Users/tu_usuario/development/flutter
+# flutter.versionName=1.0.0
+# flutter.versionCode=1

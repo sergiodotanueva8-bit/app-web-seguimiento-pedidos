@@ -1,0 +1,64 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode") ?: "1"
+def flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "1.0.0"
+
+android {
+    namespace "com.mrbarril.pedidos"
+    compileSdk 36
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        // Identificador único de la app. Si más adelante publicas en
+        // Play Store, no podrás cambiarlo después de la primera subida.
+        applicationId "com.mrbarril.pedidos"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 36
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+
+    buildTypes {
+        release {
+            // Para producción real, configura tu propio keystore de firma.
+            // Mientras tanto, firmamos con la clave de debug para que el
+            // APK se instale sin fricción durante las pruebas internas.
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source "../.."
+}
+
+dependencies {
+    implementation platform("com.google.firebase:firebase-bom:33.1.2")
+    implementation "com.google.firebase:firebase-messaging"
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
+}
