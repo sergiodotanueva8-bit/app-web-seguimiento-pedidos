@@ -23,11 +23,26 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
   final _notaCtrl = TextEditingController();
   bool _guardandoNota = false;
 
+  final _numeroOrdenCtrl = TextEditingController();
+  final _codigoOrdenCtrl = TextEditingController();
+  bool _guardandoGuiaShalom = false;
+  bool _verificandoShalom = false;
+
   @override
   void initState() {
     super.initState();
     _pedido = widget.pedido;
     _notaCtrl.text = _pedido.notasInternas ?? '';
+    _numeroOrdenCtrl.text = _pedido.shalomNumeroOrden ?? '';
+    _codigoOrdenCtrl.text = _pedido.shalomCodigoOrden ?? '';
+  }
+
+  @override
+  void dispose() {
+    _notaCtrl.dispose();
+    _numeroOrdenCtrl.dispose();
+    _codigoOrdenCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _copiarNumero() async {
@@ -113,6 +128,13 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
           mensajeWhatsappCorto: _pedido.mensajeWhatsappCorto,
           mensajePedidoCompleto: _pedido.mensajePedidoCompleto,
           notasInternas: _pedido.notasInternas,
+          shalomNumeroOrden: _pedido.shalomNumeroOrden,
+          shalomCodigoOrden: _pedido.shalomCodigoOrden,
+          shalomUltimoEstado: _pedido.shalomUltimoEstado,
+          shalomUltimaVerificacion: _pedido.shalomUltimaVerificacion,
+          shalomTrackingActivo: _pedido.shalomTrackingActivo,
+          shalomOrigen: _pedido.shalomOrigen,
+          shalomDestino: _pedido.shalomDestino,
         );
       });
     }
@@ -166,6 +188,13 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
           mensajeWhatsappCorto: _pedido.mensajeWhatsappCorto,
           mensajePedidoCompleto: _pedido.mensajePedidoCompleto,
           notasInternas: _pedido.notasInternas,
+          shalomNumeroOrden: _pedido.shalomNumeroOrden,
+          shalomCodigoOrden: _pedido.shalomCodigoOrden,
+          shalomUltimoEstado: _pedido.shalomUltimoEstado,
+          shalomUltimaVerificacion: _pedido.shalomUltimaVerificacion,
+          shalomTrackingActivo: _pedido.shalomTrackingActivo,
+          shalomOrigen: _pedido.shalomOrigen,
+          shalomDestino: _pedido.shalomDestino,
         );
       });
     }
@@ -178,6 +207,99 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nota guardada')));
     }
+  }
+
+  Future<void> _activarSeguimientoShalom() async {
+    final numero = _numeroOrdenCtrl.text.trim();
+    final codigo = _codigoOrdenCtrl.text.trim();
+    if (numero.isEmpty || codigo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa el N° de Orden y el Código de Orden')),
+      );
+      return;
+    }
+    setState(() => _guardandoGuiaShalom = true);
+    try {
+      await PedidosService.guardarGuiaShalom(_pedido.id, numeroOrden: numero, codigoOrden: codigo);
+      final actualizado = await PedidosService.obtenerPedidoPorId(_pedido.id);
+      if (mounted) setState(() => _pedido = actualizado);
+      // Disparamos una primera verificación de inmediato, así el
+      // usuario no tiene que esperar el próximo ciclo del cron (3-5 min).
+      await _verificarShalomAhora(mostrarMensaje: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Seguimiento activado. Verificando estado...')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: Text('No se pudo guardar la guía: ${_mensajeError(e)}'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoGuiaShalom = false);
+    }
+  }
+
+  Future<void> _verificarShalomAhora({bool mostrarMensaje = true}) async {
+    setState(() => _verificandoShalom = true);
+    try {
+      await PedidosService.verificarShalomAhora(_pedido.id);
+      final actualizado = await PedidosService.obtenerPedidoPorId(_pedido.id);
+      if (mounted) setState(() => _pedido = actualizado);
+      if (mounted && mostrarMensaje) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Estado actualizado')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: Text('No se pudo verificar: ${_mensajeError(e)}'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _verificandoShalom = false);
+    }
+  }
+
+  Future<void> _quitarGuiaShalom() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('¿Quitar guía Shalom?'),
+        content: const Text('Se detendrá el seguimiento automático de este envío.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Quitar')),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    await PedidosService.quitarGuiaShalom(_pedido.id);
+    final actualizado = await PedidosService.obtenerPedidoPorId(_pedido.id);
+    if (mounted) {
+      setState(() {
+        _pedido = actualizado;
+        _numeroOrdenCtrl.clear();
+        _codigoOrdenCtrl.clear();
+      });
+    }
+  }
+
+  String _hace(DateTime fecha) {
+    final diff = DateTime.now().difference(fecha);
+    if (diff.inMinutes < 1) return 'hace un momento';
+    if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'hace ${diff.inHours} h';
+    return DateFormat('dd/MM/yyyy hh:mm a').format(fecha);
   }
 
   @override
@@ -226,6 +348,11 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
             _filaDato(Icons.shopping_bag_outlined, 'Cantidad', '${_pedido.cantidad}'),
             _filaDato(Icons.attach_money, 'Total a pagar', formatoMoneda.format(_pedido.totalPagar)),
           ]),
+
+          if (_pedido.tipoEnvio == 'provincia') ...[
+            const SizedBox(height: 4),
+            _seccionSeguimientoShalom(),
+          ],
 
           const SizedBox(height: 8),
           Row(
@@ -290,6 +417,132 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
     final texto = e.toString();
     // PostgrestException ya incluye el "message" de Postgres en su toString()
     return texto.length > 160 ? '${texto.substring(0, 160)}...' : texto;
+  }
+
+  Widget _seccionSeguimientoShalom() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Seguimiento Shalom',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primario),
+                ),
+                const SizedBox(width: 6),
+                const Text('🚚', style: TextStyle(fontSize: 14)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (!_pedido.tieneGuiaShalom) ...[
+              const Text(
+                'Ingresa el N° de Orden y el Código de Orden de la guía '
+                    '(los mismos que aparecen en el ticket de Shalom) para '
+                    'activar el seguimiento automático del envío.',
+                style: TextStyle(fontSize: 12.5, color: AppTheme.textoSecundario),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _numeroOrdenCtrl,
+                      keyboardType: TextInputType.number,
+                      maxLength: 8,
+                      decoration: const InputDecoration(
+                        labelText: 'N° de Orden',
+                        counterText: '',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _codigoOrdenCtrl,
+                      maxLength: 4,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Código de Orden',
+                        counterText: '',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _guardandoGuiaShalom ? null : _activarSeguimientoShalom,
+                  icon: _guardandoGuiaShalom
+                      ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                      : const Icon(Icons.gps_fixed),
+                  label: Text(_guardandoGuiaShalom ? 'Activando...' : 'Activar seguimiento'),
+                ),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  EstadoBadge(
+                    texto: _pedido.shalomUltimoEstado != null
+                        ? EstadosPedido.labelEstadoEnvio(_pedido.shalomUltimoEstado!)
+                        : 'Verificando...',
+                    color: AppTheme.colorEstadoEnvio(_pedido.shalomUltimoEstado ?? 'nuevo'),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: _verificandoShalom ? null : () => _verificarShalomAhora(),
+                    tooltip: 'Verificar ahora',
+                    icon: _verificandoShalom
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : const Icon(Icons.refresh, color: AppTheme.primario),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _pedido.shalomUltimaVerificacion != null
+                    ? 'Última verificación: ${_hace(_pedido.shalomUltimaVerificacion!)}'
+                    : 'Aún sin verificar — se revisará automáticamente en los próximos minutos.',
+                style: const TextStyle(fontSize: 12, color: AppTheme.textoSecundario),
+              ),
+              if (_pedido.shalomOrigen != null || _pedido.shalomDestino != null) ...[
+                const SizedBox(height: 10),
+                if (_pedido.shalomOrigen != null)
+                  _filaDato(Icons.trip_origin, 'Origen', _pedido.shalomOrigen!),
+                if (_pedido.shalomDestino != null)
+                  _filaDato(Icons.flag_outlined, 'Destino', _pedido.shalomDestino!),
+              ],
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _quitarGuiaShalom,
+                  icon: const Icon(Icons.close, size: 16, color: AppTheme.peligro),
+                  label: const Text('Quitar guía', style: TextStyle(color: AppTheme.peligro)),
+                ),
+              ),
+            ],
+            const SizedBox(height: 2),
+            Text(
+              'N° de Orden: 8 dígitos · Código de Orden: 4 caracteres (mismo formato que shalom.com.pe/rastrea)',
+              style: TextStyle(fontSize: 10.5, color: AppTheme.textoSecundario.withValues(alpha: 0.8)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _seccion(String titulo, List<Widget> filas) {

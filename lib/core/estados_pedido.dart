@@ -27,14 +27,30 @@ class EstadosPedido {
   // ---------------- Estado de envío: Lima (3 pasos + cancelado) ----------------
   static const List<String> flujoLima = ['nuevo', 'en_camino', 'entregado', 'cancelado'];
 
-  // ---------------- Estado de envío: Provincia (4 pasos + cancelado) ----------------
-  static const List<String> flujoProvincia = ['nuevo', 'en_origen', 'en_transito', 'en_destino', 'cancelado'];
+  // ---------------- Estado de envío: Provincia (5 pasos + cancelado) ----------------
+  // 'entregado' se agregó para que coincida 1 a 1 con los 4 pasos
+  // del rastreador de Shalom (En origen → En tránsito → En destino →
+  // Entregado), necesario para el seguimiento automático.
+  static const List<String> flujoProvincia = ['nuevo', 'en_origen', 'en_transito', 'en_destino', 'entregado', 'cancelado'];
 
   /// Devuelve el flujo de estados válido según el tipo de envío.
   /// 'archivado' siempre se puede aplicar manualmente pero no aparece
   /// en el flujo normal de selección rápida.
   static List<String> flujoSegunTipo(String tipoEnvio) {
     return tipoEnvio == 'lima' ? flujoLima : flujoProvincia;
+  }
+
+  /// Convierte el texto que devuelve el rastreador de Shalom
+  /// ("En origen", "En tránsito", "En destino", "Entregado") a
+  /// nuestra clave interna de estado_envio. Usado por el Edge
+  /// Function de seguimiento automático.
+  static String? mapEstadoDesdeShalom(String textoShalom) {
+    final t = textoShalom.trim().toLowerCase();
+    if (t.contains('entregado')) return 'entregado';
+    if (t.contains('destino')) return 'en_destino';
+    if (t.contains('tránsito') || t.contains('transito')) return 'en_transito';
+    if (t.contains('origen')) return 'en_origen';
+    return null;
   }
 
   static String labelEstadoEnvio(String estado) {

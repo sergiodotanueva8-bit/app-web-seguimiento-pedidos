@@ -6,6 +6,24 @@ import 'supabase_service.dart';
 class PedidosService {
   static SupabaseClient get _db => SupabaseService.client;
 
+  /// Trae un solo pedido actualizado (usado para refrescar la pantalla
+  /// de detalle después de guardar la guía Shalom o verificar el estado).
+  static Future<Pedido> obtenerPedidoPorId(String pedidoId) async {
+    final data = await _db.from('pedidos').select().eq('id', pedidoId).single();
+    return Pedido.fromMap(data);
+  }
+
+  /// Stream en tiempo real de UN solo pedido (útil para que la pantalla
+  /// de detalle se actualice sola cuando el cron de Shalom cambie el
+  /// estado en segundo plano, sin que el usuario tenga que volver atrás).
+  static Stream<Pedido?> streamPedido(String pedidoId) {
+    return _db
+        .from('pedidos')
+        .stream(primaryKey: ['id'])
+        .eq('id', pedidoId)
+        .map((rows) => rows.isEmpty ? null : Pedido.fromMap(rows.first));
+  }
+
   /// Trae pedidos una sola vez (RLS ya filtra por tienda automáticamente).
   static Future<List<Pedido>> listarPedidos() async {
     final data = await _db
@@ -35,6 +53,47 @@ class PedidosService {
 
   static Future<void> guardarNotaInterna(String pedidoId, String nota) async {
     await _db.from('pedidos').update({'notas_internas': nota}).eq('id', pedidoId);
+  }
+
+  /// Guarda el N° de Orden y Código de Orden de la guía Shalom para
+  /// un pedido de provincia y activa el seguimiento automático.
+  /// El Edge Function `verificar-shalom` (corre cada 3-5 min vía
+  /// pg_cron) recogerá este pedido en su próxima pasada.
+  static Future<void> guardarGuiaShalom(
+      String pedidoId, {
+        required String numeroOrden,
+        required String codigoOrden,
+      }) async {
+    await _db.from('pedidos').update({
+      'shalom_numero_orden': numeroOrden.trim(),
+      'shalom_codigo_orden': codigoOrden.trim().toUpperCase(),
+      'shalom_tracking_activo': true,
+      // Limpiamos el estado anterior para que se note en la UI que
+      // la primera verificación todavía está pendiente.
+      'shalom_ultimo_estado': null,
+      'shalom_ultima_verificacion': null,
+    }).eq('id', pedidoId);
+  }
+
+  /// Quita la guía guardada y desactiva el seguimiento automático
+  /// (por si el cliente se equivocó al ingresar el número/código).
+  static Future<void> quitarGuiaShalom(String pedidoId) async {
+    await _db.from('pedidos').update({
+      'shalom_numero_orden': null,
+      'shalom_codigo_orden': null,
+      'shalom_tracking_activo': false,
+      'shalom_ultimo_estado': null,
+      'shalom_ultima_verificacion': null,
+      'shalom_origen': null,
+      'shalom_destino': null,
+    }).eq('id', pedidoId);
+  }
+
+  /// Dispara una verificación inmediata (botón "Verificar ahora"),
+  /// sin esperar a la próxima pasada del cron. Llama al mismo Edge
+  /// Function que usa el cron, pero solo para este pedido puntual.
+  static Future<void> verificarShalomAhora(String pedidoId) async {
+    await _db.functions.invoke('verificar-shalom', body: {'pedido_id': pedidoId});
   }
 
   static Future<ResumenDashboard> obtenerResumen() async {

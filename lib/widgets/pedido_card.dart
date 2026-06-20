@@ -75,6 +75,16 @@ class PedidoCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (pedido.tieneGuiaShalom) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: EstadoBadge(
+                    texto: '🚚 Shalom: ${pedido.shalomUltimoEstado != null ? EstadosPedido.labelEstadoEnvio(pedido.shalomUltimoEstado!) : 'verificando...'}',
+                    color: AppTheme.colorEstadoEnvio(pedido.shalomUltimoEstado ?? 'nuevo'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

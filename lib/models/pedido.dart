@@ -30,6 +30,15 @@ class Pedido {
   final String? mensajePedidoCompleto;
   final String? notasInternas;
 
+  // Seguimiento automático Shalom (solo aplica a tipoEnvio == 'provincia')
+  final String? shalomNumeroOrden;
+  final String? shalomCodigoOrden;
+  final String? shalomUltimoEstado;
+  final DateTime? shalomUltimaVerificacion;
+  final bool shalomTrackingActivo;
+  final String? shalomOrigen;
+  final String? shalomDestino;
+
   Pedido({
     required this.id,
     required this.creadoEn,
@@ -53,6 +62,13 @@ class Pedido {
     this.mensajeWhatsappCorto,
     this.mensajePedidoCompleto,
     this.notasInternas,
+    this.shalomNumeroOrden,
+    this.shalomCodigoOrden,
+    this.shalomUltimoEstado,
+    this.shalomUltimaVerificacion,
+    this.shalomTrackingActivo = true,
+    this.shalomOrigen,
+    this.shalomDestino,
   });
 
   factory Pedido.fromMap(Map<String, dynamic> map) {
@@ -79,6 +95,15 @@ class Pedido {
       mensajeWhatsappCorto: map['mensaje_whatsapp_corto'] as String?,
       mensajePedidoCompleto: map['mensaje_pedido_completo'] as String?,
       notasInternas: map['notas_internas'] as String?,
+      shalomNumeroOrden: map['shalom_numero_orden'] as String?,
+      shalomCodigoOrden: map['shalom_codigo_orden'] as String?,
+      shalomUltimoEstado: map['shalom_ultimo_estado'] as String?,
+      shalomUltimaVerificacion: map['shalom_ultima_verificacion'] != null
+          ? DateTime.parse(map['shalom_ultima_verificacion'] as String).toLocal()
+          : null,
+      shalomTrackingActivo: map['shalom_tracking_activo'] as bool? ?? true,
+      shalomOrigen: map['shalom_origen'] as String?,
+      shalomDestino: map['shalom_destino'] as String?,
     );
   }
 
@@ -95,4 +120,11 @@ class Pedido {
   }
 
   String get etiquetaDestino => tipoEnvio == 'lima' ? 'Lima' : 'Provincia';
+
+  /// True si ya se guardó N° de Orden + Código de Orden de Shalom
+  /// para este pedido (solo posible/relevante en envíos a provincia).
+  bool get tieneGuiaShalom =>
+      tipoEnvio == 'provincia' &&
+          (shalomNumeroOrden?.isNotEmpty ?? false) &&
+          (shalomCodigoOrden?.isNotEmpty ?? false);
 }
