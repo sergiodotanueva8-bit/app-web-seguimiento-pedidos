@@ -23,7 +23,7 @@ class Pedido {
   final double costoInstalacion;
   final double totalPagar;
 
-  final String estadoPago; // pendiente | pagado | no_cobrado
+  final String estadoPago;
   final String estadoEnvio;
 
   final String? mensajeWhatsappCorto;
@@ -33,11 +33,15 @@ class Pedido {
   // Seguimiento automático Shalom (solo aplica a tipoEnvio == 'provincia')
   final String? shalomNumeroOrden;
   final String? shalomCodigoOrden;
+  final String? shalomOseId;          // ← ID interno de Shalom (obtenido al activar guía)
   final String? shalomUltimoEstado;
   final DateTime? shalomUltimaVerificacion;
   final bool shalomTrackingActivo;
   final String? shalomOrigen;
   final String? shalomDestino;
+
+  // Soft delete: null = activo, non-null = eliminado (restaurable)
+  final DateTime? eliminadoEn;
 
   Pedido({
     required this.id,
@@ -64,11 +68,13 @@ class Pedido {
     this.notasInternas,
     this.shalomNumeroOrden,
     this.shalomCodigoOrden,
+    this.shalomOseId,
     this.shalomUltimoEstado,
     this.shalomUltimaVerificacion,
     this.shalomTrackingActivo = true,
     this.shalomOrigen,
     this.shalomDestino,
+    this.eliminadoEn,
   });
 
   factory Pedido.fromMap(Map<String, dynamic> map) {
@@ -97,6 +103,7 @@ class Pedido {
       notasInternas: map['notas_internas'] as String?,
       shalomNumeroOrden: map['shalom_numero_orden'] as String?,
       shalomCodigoOrden: map['shalom_codigo_orden'] as String?,
+      shalomOseId: map['shalom_ose_id'] as String?,
       shalomUltimoEstado: map['shalom_ultimo_estado'] as String?,
       shalomUltimaVerificacion: map['shalom_ultima_verificacion'] != null
           ? DateTime.parse(map['shalom_ultima_verificacion'] as String).toLocal()
@@ -104,25 +111,22 @@ class Pedido {
       shalomTrackingActivo: map['shalom_tracking_activo'] as bool? ?? true,
       shalomOrigen: map['shalom_origen'] as String?,
       shalomDestino: map['shalom_destino'] as String?,
+      eliminadoEn: map['eliminado_en'] != null
+          ? DateTime.parse(map['eliminado_en'] as String).toLocal()
+          : null,
     );
   }
 
-  /// Número de WhatsApp limpio (solo dígitos, con código de país)
-  /// listo para usar en wa.me. La landing guarda el número del
-  /// cliente como 9 dígitos sin código de país (ej: 994281280),
-  /// así que aquí le anteponemos el 51 si hace falta.
+  bool get estaEliminado => eliminadoEn != null;
+
   String get whatsappLimpio {
     final soloDigitos = whatsapp.replaceAll(RegExp(r'[^0-9]'), '');
-    if (soloDigitos.length <= 9) {
-      return '51$soloDigitos';
-    }
+    if (soloDigitos.length <= 9) return '51$soloDigitos';
     return soloDigitos;
   }
 
   String get etiquetaDestino => tipoEnvio == 'lima' ? 'Lima' : 'Provincia';
 
-  /// True si ya se guardó N° de Orden + Código de Orden de Shalom
-  /// para este pedido (solo posible/relevante en envíos a provincia).
   bool get tieneGuiaShalom =>
       tipoEnvio == 'provincia' &&
           (shalomNumeroOrden?.isNotEmpty ?? false) &&
