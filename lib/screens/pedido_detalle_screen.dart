@@ -22,14 +22,14 @@ class _NotaChat {
   _NotaChat({required this.texto, required this.fecha});
 
   Map<String, dynamic> toJson() => {
-        'texto': texto,
-        'fecha': fecha.toUtc().toIso8601String(),
-      };
+    'texto': texto,
+    'fecha': fecha.toUtc().toIso8601String(),
+  };
 
   factory _NotaChat.fromJson(Map<String, dynamic> j) => _NotaChat(
-        texto: j['texto'] as String,
-        fecha: DateTime.parse(j['fecha'] as String).toLocal(),
-      );
+    texto: j['texto'] as String,
+    fecha: DateTime.parse(j['fecha'] as String).toLocal(),
+  );
 }
 
 // Parsea el valor raw de notas_internas de la BD.
@@ -293,7 +293,7 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
         title: const Text('¿Eliminar pedido?'),
         content: Text(
           'El pedido de ${_pedido.nombreCompleto} será eliminado de la lista.\n\n'
-          'Podrás restaurarlo desde el Dashboard en cualquier momento.',
+              'Podrás restaurarlo desde el Dashboard en cualquier momento.',
         ),
         actions: [
           TextButton(
@@ -399,7 +399,7 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
       builder: (_) => AlertDialog(
         title: const Text('¿Quitar guía Shalom?'),
         content:
-            const Text('Se detendrá el seguimiento automático de este envío.'),
+        const Text('Se detendrá el seguimiento automático de este envío.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -438,7 +438,7 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     final formatoMoneda =
-        NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ');
+    NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ');
     final formatoFecha = DateFormat('dd/MM/yyyy hh:mm a');
 
     return Scaffold(
@@ -448,7 +448,7 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
         children: [
           Text(_pedido.nombreCompleto,
               style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(formatoFecha.format(_pedido.creadoEn),
               style: const TextStyle(color: AppTheme.textoSecundario)),
@@ -562,11 +562,11 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
             ),
             icon: _eliminando
                 ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppTheme.peligro),
-                  )
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppTheme.peligro),
+            )
                 : const Icon(Icons.delete_outline),
             label: Text(_eliminando ? 'Eliminando...' : 'Eliminar pedido'),
           ),
@@ -687,23 +687,23 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
               width: 48,
               child: _guardandoNota
                   ? const Center(
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
                   : IconButton.filled(
-                      onPressed: _guardarNota,
-                      icon: const Icon(Icons.send_rounded),
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppTheme.primario,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
+                onPressed: _guardarNota,
+                icon: const Icon(Icons.send_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.primario,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -735,8 +735,8 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
             if (!_pedido.tieneGuiaShalom) ...[
               const Text(
                 'Ingresa el N° de Orden y el Código de Orden de la guía '
-                '(los mismos que aparecen en el ticket de Shalom) para '
-                'activar el seguimiento automático del envío.',
+                    '(los mismos que aparecen en el ticket de Shalom) para '
+                    'activar el seguimiento automático del envío.',
                 style: TextStyle(
                     fontSize: 12.5, color: AppTheme.textoSecundario),
               ),
@@ -773,14 +773,14 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed:
-                      _guardandoGuiaShalom ? null : _activarSeguimientoShalom,
+                  _guardandoGuiaShalom ? null : _activarSeguimientoShalom,
                   icon: _guardandoGuiaShalom
                       ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
                       : const Icon(Icons.gps_fixed),
                   label: Text(_guardandoGuiaShalom
                       ? 'Activando...'
@@ -793,7 +793,7 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
                   EstadoBadge(
                     texto: _pedido.shalomUltimoEstado != null
                         ? EstadosPedido.labelEstadoEnvio(
-                            _pedido.shalomUltimoEstado!)
+                        _pedido.shalomUltimoEstado!)
                         : 'Verificando...',
                     color: AppTheme.colorEstadoEnvio(
                         _pedido.shalomUltimoEstado ?? 'nuevo'),
@@ -801,14 +801,14 @@ class _PedidoDetalleScreenState extends State<PedidoDetalleScreen> {
                   const Spacer(),
                   IconButton(
                     onPressed:
-                        _verificandoShalom ? null : () => _verificarShalomAhora(),
+                    _verificandoShalom ? null : () => _verificarShalomAhora(),
                     tooltip: 'Verificar ahora',
                     icon: _verificandoShalom
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                         : const Icon(Icons.refresh, color: AppTheme.primario),
                   ),
                 ],
