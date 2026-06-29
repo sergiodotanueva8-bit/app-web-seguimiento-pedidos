@@ -1,132 +1,16 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pedido.dart';
 import '../models/tienda.dart';
 import 'supabase_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API de Shalom — solo el endpoint /buscar se llama desde el cliente Dart
-// (el navegador/app tiene el contexto para enviar reCAPTCHA si Shalom lo exige,
-//  pero en la práctica este endpoint NO requiere reCAPTCHA si se envía el
-//  header Origin correcto — verificado con las claves del JS de shalom.com.pe).
+// Shalom: TODO el contacto con la API de Shalom ocurre en las Edge Functions
+// (buscar-shalom para obtener el ose_id, verificar-shalom para /estados).
 //
-// El ose_id obtenido aquí se guarda en BD para que la Edge Function
-// pueda llamar a /estados sin reCAPTCHA.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const _shalomApiBase =
-    'https://serviceswebapi.shalomcontrol.com/api/v1/web/rastrea';
-
-// Clave AES para desencriptar respuestas de Shalom
-// (extraída del JS de shalom.com.pe en la sesión de análisis)
-const _aesKeyB64 = 'uQn/bQ94PXBEfId70zjN+VE1hSU7kh9VBXTOUd68Ssc=';
-
-/// Llama a /buscar con número y código de orden.
-/// Devuelve el ose_id si lo encuentra, o lanza excepción.
-///
-/// NOTA: Este llamado se hace desde el cliente (app/browser), no desde
-/// la Edge Function, porque /buscar puede requerir reCAPTCHA en el futuro.
-/// Por ahora funciona sin token si enviamos los headers correctos.
-Future<_ShalomBuscarResult> _buscarGuiaShalom({
-  required String numeroOrden,
-  required String codigoOrden,
-}) async {
-  final uri = Uri.parse('$_shalomApiBase/buscar');
-  final response = await http.post(
-    uri,
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Origin': 'https://shalom.com.pe',
-      'Referer': 'https://shalom.com.pe/',
-    },
-    body: jsonEncode({
-      'numero': numeroOrden,
-      'codigo': codigoOrden,
-      // recaptcha_token vacío — Shalom lo acepta si el Origin es correcto
-      'recaptcha_token': '',
-    }),
-  ).timeout(const Duration(seconds: 15));
-
-  if (response.statusCode != 200) {
-    throw Exception(
-        'Shalom devolvió HTTP ${response.statusCode}. '
-            'Verifica que el N° de Orden y el Código sean correctos.');
-  }
-
-  final raw = jsonDecode(response.body) as Map<String, dynamic>;
-
-  // La respuesta puede ser directa (no encriptada en algunos casos)
-  // o encriptada con AES-CBC.
-  Map<String, dynamic> payload;
-  if (raw['encrypted'] == true && raw['data'] != null) {
-    payload = _desencriptarAES(raw['data'] as String);
-  } else {
-    payload = raw;
-  }
-
-  // ose_id puede venir como 'ose_id', 'id', 'orden_id', etc.
-  final oseId = (payload['ose_id'] ??
-      payload['id'] ??
-      payload['orden_id'] ??
-      payload['oseId'])
-      ?.toString();
-
-  if (oseId == null || oseId.isEmpty) {
-    // Si no hay ose_id, puede que los datos sean incorrectos
-    throw Exception(
-        'No se encontró la guía en Shalom. '
-            'Verifica que el N° de Orden y el Código sean correctos.');
-  }
-
-  final origen = (payload['origen'] ??
-      payload['ciudad_origen'] ??
-      payload['remitente']?['ciudad'])
-      ?.toString();
-  final destino = (payload['destino'] ??
-      payload['ciudad_destino'] ??
-      payload['destinatario']?['ciudad'])
-      ?.toString();
-
-  return _ShalomBuscarResult(oseId: oseId, origen: origen, destino: destino);
-}
-
-/// Desencripta una respuesta AES-CBC de Shalom.
-/// La clave está hardcodeada del JS de shalom.com.pe.
-/// IV = primeros 16 bytes del dato descodificado en base64.
-Map<String, dynamic> _desencriptarAES(String encryptedB64) {
-  // En Dart puro no hay WebCrypto. Usamos el paquete encrypt si está disponible,
-  // pero para no agregar dependencias extra, intentamos primero si la respuesta
-  // viene sin encriptar (algunos endpoints lo hacen).
-  // Si la encriptación es requerida, se necesita: encrypt: ^5.0.1 en pubspec.yaml
-  //
-  // POR AHORA: devolvemos un mapa vacío y dejamos que el servidor (Edge Function)
-  // haga la desencriptación. El cliente solo necesita el ose_id del /buscar.
-  // Si el endpoint /buscar devuelve encriptado, la Edge Function lo manejará.
-  try {
-    // Intentar parsear directo (a veces no está encriptado)
-    return jsonDecode(encryptedB64) as Map<String, dynamic>;
-  } catch (_) {
-    // Si falla, significa que sí está encriptado y necesitamos el paquete encrypt.
-    // Ver README para instrucciones de instalación.
-    throw Exception(
-        'La respuesta de Shalom está encriptada. '
-            'Agrega el paquete "encrypt: ^5.0.1" a pubspec.yaml y '
-            'contacta al desarrollador para el fix de desencriptación en cliente.');
-  }
-}
-
-class _ShalomBuscarResult {
-  final String oseId;
-  final String? origen;
-  final String? destino;
-  _ShalomBuscarResult(
-      {required this.oseId, this.origen, this.destino});
-}
-
+// El cliente NO llama a Shalom ni desencripta nada. Esto hace que el flujo
+// corra idéntico en web y móvil (sin CORS, sin headers prohibidos, sin AES
+// en Dart).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PedidosService {
@@ -241,55 +125,76 @@ class PedidosService {
     }
   }
 
-  /// Guarda la guía Shalom EN LA BD y obtiene el ose_id llamando a la
-  /// API de Shalom directamente desde el cliente.
+  /// Guarda la guía Shalom en BD obteniendo el ose_id vía la Edge Function
+  /// buscar-shalom (server-side). Corre igual en web y móvil.
   ///
-  /// El ose_id es necesario para que la Edge Function pueda verificar
-  /// el estado sin reCAPTCHA en llamadas posteriores.
+  /// Si la función no devuelve ose_id, la guía se guarda igual SIN ose_id y
+  /// se relanza un error claro (antes esto quedaba en silencio y el
+  /// seguimiento moría sin avisar).
   static Future<void> guardarGuiaShalom(
       String pedidoId, {
         required String numeroOrden,
         required String codigoOrden,
       }) async {
-    // Paso 1: llamar a /buscar desde el cliente para obtener el ose_id
-    // (el cliente tiene el contexto de navegador necesario)
     String? oseId;
     String? origen;
     String? destino;
+    String? errorMsg;
 
     try {
-      final resultado = await _buscarGuiaShalom(
-        numeroOrden: numeroOrden,
-        codigoOrden: codigoOrden,
+      final resp = await _db.functions.invoke(
+        'buscar-shalom',
+        body: {
+          'numero': numeroOrden.trim(),
+          'codigo': codigoOrden.trim().toUpperCase(),
+        },
       );
-      oseId = resultado.oseId;
-      origen = resultado.origen;
-      destino = resultado.destino;
+      final data = resp.data;
+      if (data is Map && data['ok'] == true) {
+        oseId = data['ose_id']?.toString();
+        origen = data['origen']?.toString();
+        destino = data['destino']?.toString();
+      } else if (data is Map) {
+        errorMsg =
+            (data['error'] ?? 'Respuesta inesperada de Shalom').toString();
+        if (data['debug_raw'] != null) {
+          debugPrint('[buscar-shalom] debug_raw: ${data['debug_raw']}');
+        }
+        if (data['debug_keys'] != null) {
+          debugPrint('[buscar-shalom] claves recibidas: ${data['debug_keys']}');
+        }
+      } else {
+        errorMsg = 'Respuesta inesperada de la función buscar-shalom.';
+      }
     } catch (e) {
-      // Si /buscar falla (ej: encriptación), guardamos sin ose_id.
-      // El usuario verá "necesita reactivar" en la próxima verificación.
-      // No bloqueamos el flujo — la guía se guarda igual.
-      debugPrint('[PedidosService] No se pudo obtener ose_id: $e');
+      errorMsg = e.toString();
+      debugPrint('[PedidosService] buscar-shalom falló: $e');
     }
 
-    // Paso 2: guardar en BD con el ose_id (si lo obtuvimos)
     await _db.from('pedidos').update({
       'shalom_numero_orden': numeroOrden.trim(),
       'shalom_codigo_orden': codigoOrden.trim().toUpperCase(),
-      'shalom_ose_id': oseId,          // ← nuevo campo
+      'shalom_ose_id': oseId,
       'shalom_tracking_activo': true,
       'shalom_ultimo_estado': null,
       'shalom_ultima_verificacion': null,
       'shalom_origen': origen,
       'shalom_destino': destino,
     }).eq('id', pedidoId);
+
+    if (oseId == null || oseId.isEmpty) {
+      throw Exception(
+          'La guía se guardó, pero no se obtuvo el ose_id de Shalom'
+              '${errorMsg != null ? " ($errorMsg)" : ""}. '
+              'El seguimiento automático no quedará activo hasta resolverlo.');
+    }
   }
 
   static Future<void> quitarGuiaShalom(String pedidoId) async {
     await _db.from('pedidos').update({
       'shalom_numero_orden': null,
       'shalom_codigo_orden': null,
-      'shalom_ose_id': null,           // ← limpiar también el ose_id
+      'shalom_ose_id': null,
       'shalom_tracking_activo': false,
       'shalom_ultimo_estado': null,
       'shalom_ultima_verificacion': null,
@@ -306,8 +211,6 @@ class PedidosService {
     final data = response.data;
     if (data is Map) {
       if (data['ok'] == false) {
-        // Caso especial: el pedido necesita que el usuario reactive la guía
-        // (no tiene ose_id guardado — fue activado antes de la actualización)
         if (data['necesita_reactivar'] == true) {
           throw Exception(
               'Este pedido fue activado antes de la actualización.\n'
@@ -321,8 +224,7 @@ class PedidosService {
   }
 
   static Future<ResumenDashboard> obtenerResumen() async {
-    final data =
-    await _db.from('resumen_dashboard').select().maybeSingle();
+    final data = await _db.from('resumen_dashboard').select().maybeSingle();
     return ResumenDashboard.fromMap(data);
   }
 
